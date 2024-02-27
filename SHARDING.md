@@ -108,10 +108,9 @@ Sharding is a powerful tool for scaling databases, but it's not a one-size-fits-
 
 Sharding is commonly used in the following scenarios:
 
-- **E-commerce Platforms:** These platforms deal with large volumes of product data, customer data, and order data. Sharding helps distribute the load across multiple servers and improve performance. Eg: Amazon, Alibaba, etc.
+- **E-commerce Platforms:** These platforms deal with large volumes of product data, customer data, and order data. Sharding helps distribute the load across multiple servers and improve performance.
 
 - **Social Media Platforms:** With billions of users and large amounts of user-generated content, sharding helps these platforms manage data effectively.
-- Eg: Meta (Facebook), Twitter, Instagram, etc.
 
 - **Gaming Platforms:** Online multiplayer games often need to manage real-time data for millions of players. Sharding can help distribute the load and improve performance.
 
