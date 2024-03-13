@@ -114,6 +114,49 @@ Sharding is commonly used in the following scenarios:
 
 - **Gaming Platforms:** Online multiplayer games often need to manage real-time data for millions of players. Sharding can help distribute the load and improve performance.
 
+## Lets take a look at scenario
+
+**Scenario:** Envision that you're architecting a user account management system for an application. To address scalability and performance, you've chosen to distribute the user data across multiple database shards. You've selected **directory-based sharding**, utilizing the `country_code` as the key attribute for sharding. The country_code is a three-letter code representing each country. A lookup table is used to store the mapping of each `country_code` to its corresponding `shard_id`.
+
+## Determine the number of shards
+Assuming the application is used in 3 countries, we'll use 3 shards.
+
+## Lookup table for mapping country_code to shard_id
+- We'll create a lookup table to store the mapping of country_code to shard_id. The table will have two columns: `country_code` and `shard_id`.
+- The `country_code` column will store the three-letter code for each country.
+- `country_code` example: South Korea (KOR), Thailand (THA), Malaysia (MYS)
+
+| country_code | shard_id |
+| ------------ | -------- |
+| KOR          | 1        |
+| THA          | 2        |
+| MYS          | 3        |
+
+## Handling the queries
+- We'll demonstrate how to user goes through the process of signing up a new user and how to choose the correct shard based on the country_code of the user.
+- We will also show how choose the correct shard to fetch user data from the database while signing in the user.
+
+## Basic Implementation of Database Sharding in Rails(6.1+)
+
+1. First, let’s set up our Rails application with multiple databases. In `config/database.yml`, we’ll define our shards:
+
+![Database YAML](/assets/database_yml.png)
+
+2. Next, we'll make changes to the `ApplicationRecord` class to connect to the primary and replica databases, and to the `Shard` model to connect to the shard databases. We'll also define a method to choose the correct shard based on the `country_code`.
+
+![Application Record Connection](/assets/application_record_connection.png)
+
+3. When a new user signs up, we need to choose the correct shard based on the user’s `country_code`. We can do this by using the `connected_to` method to connect to the correct shard and then create the user.
+
+![User Sign Up](/assets/users_controller.png)
+
+4. Choosing the Correct Shard for User Sign-In - Similarly, when a user signs in, we need to choose the correct shard to fetch the user data from the database.
+
+![User Sign In](/assets/sessions_controller.png)
+
+  Here is a basic implementation of database sharding in Rails. This example demonstrates how to distribute user data across multiple shards. This is a simplified example, and in a real-world scenario, you would need to consider additional factors such as data consistency, replication, and failover.
+
+
 # Conclusion
 
 Sharding can be a powerful strategy for those looking to horizontally scale their database. However, it's not without its challenges. It introduces significant complexity and increases the potential areas of failure in your application. While sharding might be essential for some, the effort and resources required to establish and manage a sharded architecture might outweigh the advantages for others.
