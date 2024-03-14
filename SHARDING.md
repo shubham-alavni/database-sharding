@@ -140,19 +140,19 @@ Assuming the application is used in 3 countries, we'll use 3 shards.
 
 1. First, let’s set up our Rails application with multiple databases. In `config/database.yml`, we’ll define our shards:
 
-
+![Database YAML](/assets/database_yml.png)
 
 2. Next, we'll make changes to the `ApplicationRecord` class to connect to the primary and replica databases, and to the `Shard` model to connect to the shard databases. We'll also define a method to choose the correct shard based on the `country_code`.
 
-
+![Application Record Connection](/assets/application_record_connection.png)
 
 3. When a new user signs up, we need to choose the correct shard based on the user’s `country_code`. We can do this by using the `connected_to` method to connect to the correct shard and then create the user.
 
-
+![User Sign Up](/assets/users_controller.png)
 
 4. Choosing the Correct Shard for User Sign-In - Similarly, when a user signs in, we need to choose the correct shard to fetch the user data from the database.
 
-
+![User Sign In](/assets/sessions_controller.png)
 
   Here is a basic implementation of database sharding in Rails. This example demonstrates how to distribute user data across multiple shards. This is a simplified example, and in a real-world scenario, you would need to consider additional factors such as data consistency, replication, and failover.
 
