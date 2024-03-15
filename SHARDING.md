@@ -46,7 +46,7 @@ Despite these challenges, Key-based sharding is a popular choice for many applic
 
 Range-based sharding is a technique that divides data into shards based on a specific range of values. For example, in a Products database, products could be sharded based on their price ranges. Products with prices between $0 and $100 could be stored in one shard, while products with prices between $100 and $200 could be stored in another shard.
 
-The primary advantage of range-based sharding is its simplicity. Each shard holds a unique data set but shares the same schema with the original database. The application determines the data's range and writes it to the appropriate shard. This process is straightforward and easy to understand.
+The range-based sharding method is simple and straightforward. Each shard contains a unique set of data but maintains the same schema as the original database. The application decides the range of the data and writes it to the correct shard.
 
 However, range-based sharding can lead to uneven data distribution, or "database hotspots". Some shards may receive more reads and writes than others if their data is accessed more frequently. This can lead to performance issues, slow queries, and imbalanced workloads. For example, a shard containing products with prices between $0 and $100 may receive more traffic than a shard containing products with prices between $100 and $200.
 
@@ -54,13 +54,13 @@ However, range-based sharding can lead to uneven data distribution, or "database
 
 ## 3. Directory-Based Sharding
 
-Directory-based sharding is a database distribution method that uses a lookup table to determine where data should be stored. A lookup table holds a fixed collection of information indicating where data is located. Directory-based sharding assigns each key to a specific shard. This technique is flexible and allows for easy addition of new shards.
+Directory-based sharding is a database strategy that utilizes a lookup table to dictate data storage locations. It assigns each key to a specific shard, using the lookup table that contains fixed data location information. This method is adaptable and simplifies the process of adding new shards.
 
-For example, a lookup table has columns for Delivery Zone and Shard ID. The Delivery Zone column is defined as a Shard key. Data from a specific delivery zone is written to the shard ID listed in the lookup table. This is similar to range-based sharding, but instead of determining the shard based on a range of values, the shard is determined by a lookup table.
+For example, a lookup table has columns for Delivery Zone and Shard ID. The Delivery Zone column is defined as a Shard key. Data from a specific delivery zone is written to the shard ID listed in the lookup table.
 
-Directory-based sharding offers flexible data distribution, efficient query routing, and dynamic scalability. It uses a central directory or lookup table to manage and update the mapping of data to shard locations, allowing for efficient load balancing and adaptation to changing data patterns. This central directory also optimizes query performance by directing queries to the specific shard containing the relevant data. Furthermore, the system can dynamically scale by adding or removing shards as needed, without requiring changes to the application logic, as the central directory handles the mapping and distribution of data, making it easier to adapt to changing requirements and workloads.
+Directory-based sharding provides flexible data distribution, efficient query routing, and dynamic scalability. It uses a central directory for managing data-to-shard mapping, optimizing query performance, and enabling efficient load balancing. The system can scale dynamically by modifying the number of shards, without affecting the application logic, thus easily adapting to changing needs and workloads.
 
-However, Directory-based sharding can slow down the process of each query or write operation due to the access of the lookup table for each query or write operation. This can lead to performance issues and slow queries. Directory-based sharding can lead to a single point of failure. If the lookup table fails, the entire database can become inaccessible. This can be mitigated by using a distributed lookup table, but this adds complexity to the system.
+However, Directory-based sharding can potentially slow down operations due to lookup table access for each query or write. It can also create a single point of failure, making the entire database inaccessible if the lookup table fails. Using a distributed lookup table can mitigate this but adds system complexity.
 
 ![Directory-Based Sharding](https://assets.digitalocean.com/articles/understanding_sharding/DB_image_4_cropped.png)
 
@@ -136,29 +136,122 @@ Assuming the application is used in 3 countries, we'll use 3 shards.
 - We'll demonstrate how to user goes through the process of signing up a new user and how to choose the correct shard based on the country_code of the user.
 - We will also show how choose the correct shard to fetch user data from the database while signing in the user.
 
-## Basic Implementation of Database Sharding in Rails(6.1+)
+## Basic Implementation of Database Sharding in Ruby on Rails framework(6.1+)
 
 1. First, let’s set up our Rails application with multiple databases. In `config/database.yml`, we’ll define our shards:
 
-![Database YAML](/assets/database_yml.png)
+
+    ```yaml
+    production:
+      primary:
+        database: myapp_primary
+        adapter: postgresql
+      primary_replica:
+        database: myapp_primary_replica
+        adapter: postgresql
+        replica: true
+      primary_kor_shard:
+        database: primary_kor_shard
+        adapter: postgresql
+        migrations_paths: db/kor_migrate_shards
+      primary_kor_shard_replica:
+        database: primary_kor_shard_replica
+        adapter: postgresql
+        replica: true
+      primary_mys_shard:
+        database: primary_mys_shard
+        adapter: postgresql
+        migrations_paths: db/mys_migrate_shards
+      primary_mys_shard_replica:
+        database: primary_mys_shard_replica
+        adapter: postgresql
+        replica: true
+      ...
+    ```
 
 2. Next, we'll make changes to the `ApplicationRecord` class to connect to the primary and replica databases, and to the `Shard` model to connect to the shard databases. We'll also define a method to choose the correct shard based on the `country_code`.
 
-![Application Record Connection](/assets/application_record_connection.png)
+
+    ```ruby
+    class ApplicationRecord < ActiveRecord::Base
+      primary_abstract_class
+
+      connects_to database: {
+        primary: { writing: :primary, reading: :primary_replica },
+      }
+    end
+
+    class Shard < ApplicationRecord
+      validates :country_code, presence: true, uniqueness: true
+
+      connects_to shards: {
+        kor_shard: { writing: :primary_kor_shard, reading: :primary_kor_shard_replica },
+        mys_shard: { writing: :primary_mys_shard, reading: :primary_mys_shard_replica },
+        tha_shard: { writing: :primary_tha_shard, reading: :primary_tha_shard_replica }
+      }
+
+      def self.shard_for(country_code)
+        case country_code
+        when 'KOR'
+          :kor_shard
+        when 'MYS'
+          :mys_shard
+        when 'THA'
+          :tha_shard
+        else
+          raise "Invalid country_code"
+        end
+      end
+    end
+
+
+    class User < ApplicationRecord
+      # ...
+
+      belongs_to :shard
+    end
+    ```
 
 3. When a new user signs up, we need to choose the correct shard based on the user’s `country_code`. We can do this by using the `connected_to` method to connect to the correct shard and then create the user.
 
-![User Sign Up](/assets/users_controller.png)
+
+    ```ruby
+    class UsersController < ApplicationController
+      def create
+        ApplicationRecord.connected_to(role: :writing, shard: Shard.shard_for(user_params[:country_code])) do
+          @user = User.new(user_params)
+          if @user.save
+            redirect_to @user, notice: 'User was successfully created.'
+          else
+            render json: @user.errors, status: :unprocessable_entity
+          end
+        end
+      end
+    end
+    ```
 
 4. Choosing the Correct Shard for User Sign-In - Similarly, when a user signs in, we need to choose the correct shard to fetch the user data from the database.
 
-![User Sign In](/assets/sessions_controller.png)
 
-  Here is a basic implementation of database sharding in Rails. This example demonstrates how to distribute user data across multiple shards. This is a simplified example, and in a real-world scenario, you would need to consider additional factors such as data consistency, replication, and failover.
+    ```ruby
+    class SessionsController < ApplicationController
+      def create
+        ApplicationRecord.connected_to(role: :reading, shard: Shard.shard_for(params[:country_code])) do
+          @user = User.find_by(email: params[:email])
+          if @user && @user.authenticate(params[:password])
+            session[:user_id] = @user.id
+            redirect_to @user
+          else
+            render json: { error: 'Invalid email or password' }, status: :unauthorized
+          end
+        end
+      end
+    end
+    ```
+
+Here is a basic implementation of database sharding in Rails. This example demonstrates how to distribute user data across multiple shards. This is a simplified example, and in a real-world scenario, you would need to consider additional factors such as data consistency, replication, and failover.
 
 
 # Conclusion
 
-Sharding can be a powerful strategy for those looking to horizontally scale their database. However, it's not without its challenges. It introduces significant complexity and increases the potential areas of failure in your application. While sharding might be essential for some, the effort and resources required to establish and manage a sharded architecture might outweigh the advantages for others.
-
-This article aimed to provide a comprehensive understanding of the benefits and drawbacks of sharding. Armed with this knowledge, you can make a more informed decision on whether a sharded database architecture is the right fit for your application's needs.
+Sharding, a strategy for horizontal database scaling, has both benefits and challenges. It adds complexity and potential failure points to your application. The effort and resources needed for a sharded architecture may outweigh its advantages for some. This article helps you understand sharding better to decide if it suits your application's needs.
